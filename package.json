@@ -1,0 +1,30 @@
+{
+  "name": "langraph-agent",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.13",
+    "@langchain/langgraph": "^0.2.45",
+    "@langchain/langgraph-checkpoint-mongodb": "^0.0.5",
+    "@langchain/mongodb": "^0.1.0",
+    "@langchain/openai": "^0.4.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongodb": "^6.13.0",
+    "p-throttle": "^7.0.0",
+    "zod": "^3.24.1"
+  }
+}
