@@ -16,36 +16,47 @@ async function startServer() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     // Set up basic Express route
-    // curl -X GET http://localhost:3000/
     app.get('/', (req: Request, res: Response) => {
       res.send('LangGraph Agent Server');
     });
 
     // API endpoint to start a new conversation
-    // curl -X POST -H "Content-Type: application/json" -d '{"message": "Build a team to make an iOS app, and tell me the talent gaps."}' http://localhost:3000/chat
     app.post('/chat', async (req: Request, res: Response) => {
       const initialMessage = req.body.message;
-      const threadId = Date.now().toString(); // Simple thread ID generation
+      const threadId = Date.now().toString();
       try {
         const response = await callAgent(client, initialMessage, threadId);
         res.json({ threadId, response });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error starting conversation:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        // Enhanced error handling for OpenRouter-specific errors
+        if (error.message?.includes('429')) {
+          res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
+        } else if (error.message?.includes('401')) {
+          res.status(401).json({ error: 'Authentication failed. Please check your API key.' });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
       }
     });
 
     // API endpoint to send a message in an existing conversation
-    // curl -X POST -H "Content-Type: application/json" -d '{"message": "What team members did you recommend?"}' http://localhost:3000/chat/123456789
     app.post('/chat/:threadId', async (req: Request, res: Response) => {
       const { threadId } = req.params;
       const { message } = req.body;
       try {
         const response = await callAgent(client, message, threadId);
         res.json({ response });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in chat:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        // Enhanced error handling for OpenRouter-specific errors
+        if (error.message?.includes('429')) {
+          res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
+        } else if (error.message?.includes('401')) {
+          res.status(401).json({ error: 'Authentication failed. Please check your API key.' });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
       }
     });
 

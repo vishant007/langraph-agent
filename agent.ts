@@ -1,5 +1,5 @@
 import { OpenAIEmbeddings } from "@langchain/openai";
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatOpenAI } from "@langchain/openai";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import {
   ChatPromptTemplate,
@@ -28,6 +28,22 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
     }),
   });
 
+  // Configure the OpenRouter model
+  const model = new ChatOpenAI({
+    configuration: {
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultHeaders: {
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "HR Chatbot Agent",
+      },
+    },
+    modelName: "mistralai/mistral-7b-instruct",
+    temperature: 0,
+    maxTokens: 1000,
+    maxRetries: 3,
+  });
+
   // Define the tools for the agent to use
   const employeeLookupTool = tool(
     async ({ query, n = 10 }) => {
@@ -40,9 +56,11 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
         embeddingKey: "embedding",
       };
 
-      // Initialize vector store
+      // Initialize vector store with OpenRouter configuration
       const vectorStore = new MongoDBAtlasVectorSearch(
-        new OpenAIEmbeddings(),
+        new OpenAIEmbeddings({
+          openAIApiKey: process.env.OPENAI_API_KEY, // Note: Still need OpenAI for embeddings
+        }),
         dbConfig
       );
 
@@ -65,24 +83,19 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
 
   const tools = [employeeLookupTool];
   
-  // We can extract the state typing via `GraphState.State`
   const toolNode = new ToolNode<typeof GraphState.State>(tools);
 
-  const model = new ChatAnthropic({
-    model: "claude-3-5-sonnet-20240620",
-    temperature: 0,
-  }).bindTools(tools);
+  // Bind tools to the model
+  const modelWithTools = model.bindTools(tools);
 
   // Define the function that determines whether to continue or not
   function shouldContinue(state: typeof GraphState.State) {
     const messages = state.messages;
     const lastMessage = messages[messages.length - 1] as AIMessage;
 
-    // If the LLM makes a tool call, then we route to the "tools" node
     if (lastMessage.tool_calls?.length) {
       return "tools";
     }
-    // Otherwise, we stop (reply to the user)
     return "__end__";
   }
 
@@ -103,12 +116,12 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
       messages: state.messages,
     });
 
-    const result = await model.invoke(formattedPrompt);
+    const result = await modelWithTools.invoke(formattedPrompt);
 
     return { messages: [result] };
   }
 
-  // Define a new graph
+  // Define the graph
   const workflow = new StateGraph(GraphState)
     .addNode("agent", callModel)
     .addNode("tools", toolNode)
@@ -116,14 +129,10 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
     .addConditionalEdges("agent", shouldContinue)
     .addEdge("tools", "agent");
 
-  // Initialize the MongoDB memory to persist state between graph runs
   const checkpointer = new MongoDBSaver({ client, dbName });
 
-  // This compiles it into a LangChain Runnable.
-  // Note that we're passing the memory when compiling the graph
   const app = workflow.compile({ checkpointer });
 
-  // Use the Runnable
   const finalState = await app.invoke(
     {
       messages: [new HumanMessage(query)],
@@ -131,7 +140,6 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
     { recursionLimit: 15, configurable: { thread_id: thread_id } }
   );
 
-  // console.log(JSON.stringify(finalState.messages, null, 2));
   console.log(finalState.messages[finalState.messages.length - 1].content);
 
   return finalState.messages[finalState.messages.length - 1].content;
