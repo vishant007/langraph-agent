@@ -83,6 +83,14 @@ The project requires several API keys and configuration values:
 - `MONGODB_ATLAS_URI` - MongoDB connection string
 - `LANGSMITH_API_KEY` - For LangSmith tracing (optional)
 
+- Start a new conversation:
+```
+curl -X POST -H "Content-Type: application/json" -d '{"message": "Your message here"}' http://localhost:3000/chat
+```
+- Continue Conversation: 
+```
+curl -X POST -H "Content-Type: application/json" -d '{"message": "Your follow-up message"}' http://localhost:3000/chat/{threadId}
+```
 ## API Endpoints
 
 - `GET /` - Health check endpoint
